@@ -1,0 +1,77 @@
+# Adding functions
+Function AddTextToImage {
+    # Orignal code from http://www.ravichaganti.com/blog/?p=1012
+    [CmdletBinding()]
+    PARAM (
+        [Parameter(Mandatory=$true)][String] $sourcePath,
+        [Parameter(Mandatory=$true)][String] $destPath,
+        [Parameter(Mandatory=$true)][String] $Title,
+        [Parameter()][String] $Description = $null
+    )
+ 
+    Write-Verbose "Load System.Drawing"
+    [Reflection.Assembly]::LoadWithPartialName("System.Drawing") | Out-Null
+     
+    Write-Verbose "Get the image from $sourcePath"
+    $srcImg = [System.Drawing.Image]::FromFile($sourcePath)
+     
+    Write-Verbose "Create a bitmap as $destPath"
+    $bmpFile = new-object System.Drawing.Bitmap([int]($srcImg.width)),([int]($srcImg.height))
+ 
+    Write-Verbose "Intialize Graphics"
+    $Image = [System.Drawing.Graphics]::FromImage($bmpFile)
+    $Image.SmoothingMode = "AntiAlias"
+     
+    $Rectangle = New-Object Drawing.Rectangle 0, 0, $srcImg.Width, $srcImg.Height
+    $Image.DrawImage($srcImg, $Rectangle, 0, 0, $srcImg.Width, $srcImg.Height, ([Drawing.GraphicsUnit]::Pixel))
+ 
+    Write-Verbose "Draw title: $Title"
+    $Font = new-object System.Drawing.Font("Mont", 37)
+    $Brush = New-Object Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(255, 250, 247, 250))
+    $Image.DrawString($Title, $Font, $Brush, 150, 400)
+     
+    if ($Description -ne $null) {
+        Write-Verbose "Draw description: $Description"
+        $Font = New-object System.Drawing.Font("Mont", 12)
+        $Brush = New-Object Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(120, 0, 0, 0))
+        $Image.DrawString($Description, $Font, $Brush, 10, 50)
+    }
+ 
+    Write-Verbose "Save and close the files"
+    $bmpFile.save($destPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
+    $bmpFile.Dispose()
+    $srcImg.Dispose()
+}
+#
+$username="your@domain-user.name"
+$password = "your_password" | ConvertTo-SecureString -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential($username, $password)
+$link_first = "<a href='link to first package files'><img src='cid:final_file.png'></a>"
+$link_second = "<a href='link to second package files'><img src='cid:final_file.png'></a>"
+$link_third = "<a href='link to third package files'><img src='cid:final_file.png'></a>"
+# Conecting to Exchange Online PowerShell module
+Import-Module -Name ActiveDirectory
+
+# Finding users generating picture etc.
+$When = (Get-Date).AddDays(-1).Date
+ForEach ($User in (Get-ADUser -Filter {whenCreated -gt $When} -Properties Mail, Department, Title))
+{   $Body = @"
+Dear $($User.GivenName),
+
+Welcome to OUR_COMPANY and the $($User.Department)!
+We are pleased you are joining
+us as a $($User.Title).
+
+You can find link on files with our main procedures
+by clinking on this picture.
+NEXT TEXT OF WELCOME HERE
+"@
+AddTextToImage "C:\path\to\source\file.png" "C:\path\to\final_file.png" "$Body"
+if (($User.Department) -eq "first department"){
+Send-MailMessage -ErrorAction Stop -from "hr@your_company.com" -to "$($User.Mail)" -cc "control@email.com" -bcc "if_neded@mail.com" -subject "Welcome to COMPANY"  -BodyAsHtml -body "$link_standard" -SmtpServer "smtp.office365.com" -Attachments "C:\path\to\final_file.png" -Priority  "Normal" -Credential $credential -Port 587 -UseSslr
+}
+elseif (($User.Department) -eq "second department"){
+Send-MailMessage -ErrorAction Stop -from "hr@your_company.com" -to "$($User.Mail)" -cc "control@email.com" -bcc "if_neded@mail.com" -subject "Welcome to COMPANY"  -BodyAsHtml -body "$link_second" -SmtpServer "smtp.office365.com" -Attachments "C:\path\to\final_file.png" -Priority  "Normal" -Credential $credential -Port 587 -UseSslr }
+else{Send-MailMessage -ErrorAction Stop -from "hr@your_company.com" -to "$($User.Mail)" -cc "control@email.com" -bcc "if_neded@mail.com" -subject "Welcome to COMPANY"  -BodyAsHtml -body "$link_third" -SmtpServer "smtp.office365.com" -Attachments "C:\path\to\final_file.png" -Priority  "Normal" -Credential $credential -Port 587 -UseSslr
+  }
+}
